@@ -1,8 +1,12 @@
-import requests
-import numpy as np
-import matplotlib.pyplot as plt
+import argparse
+import folium.plugins
 import folium
+import logging
 import math
+import matplotlib.pyplot as plt
+import numpy as np
+import requests
+import tqdm
 from scipy.interpolate import griddata
 
 def get_bounding_box(latitude, longitude, radius):
@@ -31,9 +35,9 @@ def get_bounding_box(latitude, longitude, radius):
     return (min_lat, max_lat, min_lon, max_lon)
 
 # Example usage
-latitude = 40.7128  # Example latitude (New York City)
-longitude = -74.0060  # Example longitude (New York City)
-radius = 10  # Radius in miles
+latitude = 37.7749  # Example latitude (New York City)
+longitude = -122.4194  # Example longitude (New York City)
+radius = 500  # Radius in miles
 
 # Constants
 OPENWEATHERMAP_API_KEY = open("API_KEY").read().strip()
@@ -101,19 +105,33 @@ def create_heatmap(lat, lon, interpolated_values):
 
 # Main Function
 def main():
-    num_points = 10
+    # Setup basic logging
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    
+    # Command line argument parsing
+    parser = argparse.ArgumentParser(description='Generate a Weather Heatmap.')
+    parser.add_argument('--num-points', type=int, default=10, help='Number of points to sample in each dimension (default: 10)')
+    args = parser.parse_args()
+    num_points = args.num_points
+
+    logging.info("Starting Heatmap Generation")
     coordinates = [(lat, lon) for lat in np.linspace(LAT_MIN, LAT_MAX, num=num_points) 
                                for lon in np.linspace(LON_MIN, LON_MAX, num=num_points)]
-    weather_data = [fetch_weather_data(lat, lon) for lat, lon in coordinates]
+
+    weather_data = []
+    for lat, lon in tqdm.tqdm(coordinates, desc="Fetching Weather Data"):
+        data = fetch_weather_data(lat, lon)
+        weather_data.append(data)
+    
     scalar_values = [compute_scalar_values(data) for data in weather_data]
     interpolated_values = interpolate_values(coordinates, scalar_values, num_points)
 
-    # Center of the map for initial view
     center_lat = (LAT_MIN + LAT_MAX) / 2
     center_lon = (LON_MIN + LON_MAX) / 2
 
     heatmap = create_heatmap(center_lat, center_lon, interpolated_values)
     heatmap.save('heatmap.html')
+    logging.info("Heatmap Generated and Saved")
 
 main()
 
